@@ -176,7 +176,7 @@ void ZeroConfServiceBrowserDnssd::lookupFinished(const QHostInfo &info)
     foreach (const QHostAddress &addr, info.addresses()) {
         if (addr.protocol() == QAbstractSocket::IPv4Protocol) {
             qCDebug(dcPlatformZeroConf()) << "Entry added" << addrContext->serviceType << addr;
-            ZeroConfServiceEntry entry = ZeroConfServiceEntry(addrContext->name, addrContext->serviceType, info.addresses().first(), addrContext->domain, addrContext->hostName, addrContext->port, QAbstractSocket::IPv4Protocol, addrContext->txt, false, false, false, false, false);
+            ZeroConfServiceEntry entry = ZeroConfServiceEntry(addrContext->name, addrContext->serviceType, addr, addrContext->domain, addrContext->hostName, addrContext->port, QAbstractSocket::IPv4Protocol, addrContext->txt, false, false, false, false, false);
             m_serviceEntries.append(entry);
             emit serviceEntryAdded(entry);
         }
