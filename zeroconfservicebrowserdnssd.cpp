@@ -34,6 +34,7 @@
 #include <QHostAddress>
 #include <QtEndian>
 #include <QHostInfo>
+#include <QDateTime>
 
 #include <netdb.h>
 
@@ -161,12 +162,15 @@ void ZeroConfServiceBrowserDnssd::resolveCallback(DNSServiceRef sdRef, DNSServic
     delete resolverContext;
 
 
+    qWarning() << "*********" << "starting lookup at" << QDateTime::currentDateTime() << "for" << addrContext->name << addrContext->hostName;
     int jobId = QHostInfo::lookupHost(hosttarget, self, SLOT(lookupFinished(QHostInfo)));
     self->m_pendingLookups.insert(jobId, addrContext);
 }
 
 void ZeroConfServiceBrowserDnssd::lookupFinished(const QHostInfo &info)
 {
+    qWarning() << "*********" << "lookup finsihed at" << QDateTime::currentDateTime() << "for" << info.hostName();
+
     if (!m_pendingLookups.contains(info.lookupId())) {
         qCWarning(dcPlatformZeroConf()) << "Lookup finished but we don't have a request for it";
         return;
