@@ -171,6 +171,8 @@ void ZeroConfServiceBrowserDnssd::lookupFinished(const QHostInfo &info)
 {
     qWarning() << "*********" << "lookup finsihed at" << QDateTime::currentDateTime() << "for" << info.hostName();
 
+    qWarning() << "HostInfo error:" << info.error() << info.errorString();
+
     if (!m_pendingLookups.contains(info.lookupId())) {
         qCWarning(dcPlatformZeroConf()) << "Lookup finished but we don't have a request for it";
         return;
