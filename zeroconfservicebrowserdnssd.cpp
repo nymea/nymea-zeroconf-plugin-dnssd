@@ -173,12 +173,19 @@ void ZeroConfServiceBrowserDnssd::lookupFinished(const QHostInfo &info)
     }
     Context *addrContext = m_pendingLookups.take(info.lookupId());
 
+    if (info.error() != QHostInfo::NoError) {
+        qCWarning(dcPlatformZeroConf()) << "Error resolving host address for" << addrContext->serviceType << addrContext->hostName << info.errorString();
+        return;
+    }
+
     foreach (const QHostAddress &addr, info.addresses()) {
-        if (addr.protocol() == QAbstractSocket::IPv4Protocol) {
-            qCDebug(dcPlatformZeroConf()) << "Entry added" << addrContext->serviceType << addr;
-            ZeroConfServiceEntry entry = ZeroConfServiceEntry(addrContext->name, addrContext->serviceType, addr, addrContext->domain, addrContext->hostName, addrContext->port, QAbstractSocket::IPv4Protocol, addrContext->txt, false, false, false, false, false);
+        ZeroConfServiceEntry entry = ZeroConfServiceEntry(addrContext->name, addrContext->serviceType, addr, addrContext->domain, addrContext->hostName, addrContext->port, QAbstractSocket::IPv4Protocol, addrContext->txt, false, false, false, false, false);
+        if (!m_serviceEntries.contains(entry)) {
+            qCDebug(dcPlatformZeroConf()) << "Entry added" << entry.serviceType() << entry.name() << entry.hostAddress().toString();
             m_serviceEntries.append(entry);
             emit serviceEntryAdded(entry);
+        } else {
+            qCDebug(dcPlatformZeroConf()) << "Discarding duplicate entry:" << entry.serviceType() << entry.name() << entry.hostAddress().toString();
         }
     }
     delete addrContext;
