@@ -55,10 +55,17 @@ private:
     class Context {
     public:
         QString name;
+        QString effectiveName;
+        int collisionIndex = 0;
         DNSServiceRef ref;
         ZeroConfServicePublisherDnssd *self;
         QSocketNotifier *socketNotifier = nullptr;
     };
+
+    bool registerServiceInternal(Context *ctx, const QHostAddress &hostAddress, const quint16 &port, const QString &serviceType, const QHash<QString, QString> &txtRecords);
+
+
+
     QHash<QString, Context*> m_services;
 
 };

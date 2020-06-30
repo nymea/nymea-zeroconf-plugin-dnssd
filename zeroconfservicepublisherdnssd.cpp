@@ -45,6 +45,17 @@ bool ZeroConfServicePublisherDnssd::registerService(const QString &name, const Q
         return false;
     }
 
+
+    Context *ctx = new Context();
+    ctx->self = this;
+    ctx->name = name;
+
+    return registerServiceInternal(ctx, hostAddress, port, serviceType, txtRecords);
+}
+
+bool ZeroConfServicePublisherDnssd::registerServiceInternal(ZeroConfServicePublisherDnssd::Context *ctx, const QHostAddress &hostAddress, const quint16 &port, const QString &serviceType, const QHash<QString, QString> &txtRecords)
+{
+
     uint32_t ifIndex = 0;
     if (hostAddress != QHostAddress("0.0.0.0")) {
         foreach (const QNetworkInterface &interface, QNetworkInterface::allInterfaces()) {
@@ -58,10 +69,6 @@ bool ZeroConfServicePublisherDnssd::registerService(const QString &name, const Q
         }
     }
 
-
-    Context *ctx = new Context();
-    ctx->self = this;
-    ctx->name = name;
     QByteArray txt;
     foreach (const QString &key, txtRecords.keys()) {
         QString record = key;
@@ -71,10 +78,17 @@ bool ZeroConfServicePublisherDnssd::registerService(const QString &name, const Q
         txt.append(record.toUtf8());
     }
 
-    DNSServiceErrorType err = DNSServiceRegister(&ctx->ref, 0, ifIndex, name.toUtf8().data(), serviceType.toUtf8().data(), 0, 0, qFromBigEndian<quint16>(port), txt.length(), txt, (DNSServiceRegisterReply) registerCallback, ctx);
+    ctx->effectiveName = ctx->name + ((ctx->collisionIndex > 0) ? " #" + QString::number(ctx->collisionIndex) : "");
+
+    DNSServiceErrorType err = DNSServiceRegister(&ctx->ref, 0, ifIndex, ctx->effectiveName.toUtf8().data(), serviceType.toUtf8().data(), 0, 0, qFromBigEndian<quint16>(port), txt.length(), txt, (DNSServiceRegisterReply) registerCallback, ctx);
     if (err != kDNSServiceErr_NoError) {
-        qCWarning(dcPlatformZeroConf) << "Failed to register ZeroConf service" << name << "with dns_sd";
+        qCWarning(dcPlatformZeroConf) << "Failed to register ZeroConf service" << ctx->name << "with dns_sd. Error:" << err;
         delete ctx;
+        if (err == kDNSServiceErr_NameConflict) {
+            qCDebug(dcPlatformZeroConf()) << "Handling service collision";
+            ctx->collisionIndex++;
+            return registerServiceInternal(ctx, hostAddress, port, serviceType, txtRecords);
+        }
         return false;
     }
 
@@ -98,9 +112,10 @@ bool ZeroConfServicePublisherDnssd::registerService(const QString &name, const Q
         }
     });
 
-    m_services.insert(name, ctx);
-    qCDebug(dcPlatformZeroConf) << "ZeroConf service" << name << serviceType << port << "registerd at dns_sd";
+    m_services.insert(ctx->name, ctx);
+    qCDebug(dcPlatformZeroConf) << "ZeroConf service" << ctx->name << serviceType << port << "registerd at dns_sd as" << ctx->effectiveName;
     return true;
+
 }
 
 void ZeroConfServicePublisherDnssd::unregisterService(const QString &name)
@@ -128,3 +143,4 @@ void DNSSD_API ZeroConfServicePublisherDnssd::registerCallback(DNSServiceRef, DN
         delete ctx;
     }
 }
+

@@ -75,54 +75,74 @@ ZeroConfServiceBrowserDnssd::~ZeroConfServiceBrowserDnssd()
 
 QList<ZeroConfServiceEntry> ZeroConfServiceBrowserDnssd::serviceEntries() const
 {
-    return m_serviceEntries;
+    return m_serviceEntries.values();
 }
 
 void DNSSD_API ZeroConfServiceBrowserDnssd::browseCallback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_t interfaceIndex, DNSServiceErrorType errorCode, const char *serviceName, const char *regtype, const char *replyDomain, void *context)
 {
     Q_UNUSED(sdRef)
-    Q_UNUSED(flags)
     Q_UNUSED(errorCode)
-    qCDebug(dcPlatformZeroConf) << "Browsing result:" << serviceName << regtype << replyDomain << context;
+
     ZeroConfServiceBrowserDnssd *self = static_cast<ZeroConfServiceBrowserDnssd*>(context);
 
-    Context *resolverContext = new Context();
-    resolverContext->self = self;
-    resolverContext->name = QString::fromUtf8(serviceName);
-    resolverContext->serviceType = QString::fromUtf8(regtype);
-    resolverContext->serviceType.remove(QRegExp(".$"));
-    resolverContext->domain = QString::fromUtf8(replyDomain);
+    if (flags & kDNSServiceFlagsAdd) {
 
-    DNSServiceErrorType err = DNSServiceResolve(&resolverContext->ref, 0, interfaceIndex, serviceName, regtype, replyDomain, (DNSServiceResolveReply) ZeroConfServiceBrowserDnssd::resolveCallback, resolverContext);
-    if (err != kDNSServiceErr_NoError) {
-        qCWarning(dcPlatformZeroConf) << "Failed to create service resolver:" << err;
-        delete resolverContext;
-        return;
-    }
+        qCDebug(dcPlatformZeroConf) << "Service appeared:" << QString("%1.%2").arg(serviceName).arg(regtype) << flags << interfaceIndex;
 
-    int sockFd = DNSServiceRefSockFD(resolverContext->ref);
-    if (sockFd == -1) {
-        DNSServiceRefDeallocate(resolverContext->ref);
-        delete resolverContext;
-        return;
-    }
+        Context *resolverContext = new Context();
+        resolverContext->self = self;
+        resolverContext->name = QString::fromUtf8(serviceName);
+        resolverContext->serviceType = QString::fromUtf8(regtype);
+        resolverContext->serviceType.remove(QRegExp(".$"));
+        resolverContext->domain = QString::fromUtf8(replyDomain);
 
-    resolverContext->socketNotifier = new QSocketNotifier(sockFd, QSocketNotifier::Read, self);
-    connect(resolverContext->socketNotifier, &QSocketNotifier::activated, self, [resolverContext]{
-        DNSServiceErrorType err = DNSServiceProcessResult(resolverContext->ref);
+        DNSServiceErrorType err = DNSServiceResolve(&resolverContext->ref, 0, interfaceIndex, serviceName, regtype, replyDomain, (DNSServiceResolveReply) ZeroConfServiceBrowserDnssd::resolveCallback, resolverContext);
         if (err != kDNSServiceErr_NoError) {
-            DNSServiceRefDeallocate(resolverContext->ref);
-            resolverContext->socketNotifier->deleteLater();
+            qCWarning(dcPlatformZeroConf) << "Failed to create service resolver:" << err;
             delete resolverContext;
+            return;
         }
-    });
 
+        int sockFd = DNSServiceRefSockFD(resolverContext->ref);
+        if (sockFd == -1) {
+            DNSServiceRefDeallocate(resolverContext->ref);
+            delete resolverContext;
+            return;
+        }
+
+        resolverContext->socketNotifier = new QSocketNotifier(sockFd, QSocketNotifier::Read, self);
+        connect(resolverContext->socketNotifier, &QSocketNotifier::activated, self, [resolverContext]{
+            DNSServiceErrorType err = DNSServiceProcessResult(resolverContext->ref);
+            if (err != kDNSServiceErr_NoError) {
+                DNSServiceRefDeallocate(resolverContext->ref);
+                resolverContext->socketNotifier->deleteLater();
+                delete resolverContext;
+            }
+        });
+
+    } else if (flags == 0x00) {
+        QString serviceType = regtype;
+        serviceType.remove(QRegExp(".$"));
+
+        QString id = QString("%1.%2@%3").arg(serviceName).arg(serviceType).arg(interfaceIndex);
+
+        qCDebug(dcPlatformZeroConf) << "Service disappeared:" << id;
+
+        if (self->m_serviceEntries.contains(id)) {
+            qCDebug(dcPlatformZeroConf()) << "Entry removed:" << id;
+            ZeroConfServiceEntry entry = self->m_serviceEntries.take(serviceName);
+            emit self->serviceEntryRemoved(entry);
+        }
+    }
 }
 
 void ZeroConfServiceBrowserDnssd::resolveCallback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_t interfaceIndex, DNSServiceErrorType errorCode, const char *fullname, const char *hosttarget, uint16_t port, uint16_t txtLen, const unsigned char *txtRecord, void *context)
 {
     Q_UNUSED(sdRef)
-    qCDebug(dcPlatformZeroConf) << "Resolve callback" << flags << interfaceIndex << errorCode << fullname << hosttarget << port << txtLen << txtRecord << context;
+    Q_UNUSED(flags)
+    Q_UNUSED(interfaceIndex)
+    Q_UNUSED(fullname)
+//    qCDebug(dcPlatformZeroConf) << "Resolve callback" << flags << interfaceIndex << errorCode << fullname << hosttarget << port << txtLen << txtRecord << context;
 
     Context *resolverContext = static_cast<Context*>(context);
     ZeroConfServiceBrowserDnssd *self = resolverContext->self;
@@ -130,7 +150,7 @@ void ZeroConfServiceBrowserDnssd::resolveCallback(DNSServiceRef sdRef, DNSServic
     delete resolverContext->socketNotifier;
 
     if (errorCode != kDNSServiceErr_NoError) {
-        qCWarning(dcPlatformZeroConf) << "Failed to resolve service" << errorCode;
+        qCWarning(dcPlatformZeroConf) << "Failed to resolve service" << fullname << "Error code:" << errorCode;
         delete resolverContext;
         return;
     }
@@ -142,6 +162,7 @@ void ZeroConfServiceBrowserDnssd::resolveCallback(DNSServiceRef sdRef, DNSServic
     addrContext->domain = resolverContext->domain;
     addrContext->hostName = QString::fromUtf8(hosttarget);
     addrContext->port = qFromBigEndian<quint16>(port);
+    addrContext->interfaceIndex = interfaceIndex;
     QStringList txt;
     qint16 recLen;
     while (txtLen > 0) {
@@ -160,9 +181,21 @@ void ZeroConfServiceBrowserDnssd::resolveCallback(DNSServiceRef sdRef, DNSServic
     addrContext->txt = txt;
     delete resolverContext;
 
+    qCDebug(dcPlatformZeroConf()) << "Resolving host for" << fullname << hosttarget;
 
+    // From here on we resolve the serviec. First, when using the AVAHI libdns compat lib.
+    // The avahi compat lib does not implement DNSServiceGetAddrInfo. We can use other
+    // means to resolve the address, however, neither QHostInfo nor gethostbyname allows us
+    // to restrict resolving to a certain interface and that messes up stuff if we discover
+    // the same service on different interfaces. We don't know how to deduplicate them any more.
+    // To behave better on systems where DNSServiceGetAddrInfo is available, let's use thae
+    // alternative implementation below.
+
+
+#ifdef AVAHI_COMPAT
     int jobId = QHostInfo::lookupHost(hosttarget, self, SLOT(lookupFinished(QHostInfo)));
     self->m_pendingLookups.insert(jobId, addrContext);
+
 }
 
 void ZeroConfServiceBrowserDnssd::lookupFinished(const QHostInfo &info)
@@ -177,16 +210,81 @@ void ZeroConfServiceBrowserDnssd::lookupFinished(const QHostInfo &info)
         qCWarning(dcPlatformZeroConf()) << "Error resolving host address for" << addrContext->serviceType << addrContext->hostName << info.errorString();
         return;
     }
+    QString id = QString("%1.%2@%3").arg(addrContext->name).arg(addrContext->serviceType).arg(addrContext->interfaceIndex);
 
+    qCDebug(dcPlatformZeroConf()) << "Host resolved" << id;
     foreach (const QHostAddress &addr, info.addresses()) {
         ZeroConfServiceEntry entry = ZeroConfServiceEntry(addrContext->name, addrContext->serviceType, addr, addrContext->domain, addrContext->hostName, addrContext->port, addr.protocol(), addrContext->txt, false, false, false, false, false);
-        if (!m_serviceEntries.contains(entry)) {
-            qCDebug(dcPlatformZeroConf()) << "Entry added" << entry.serviceType() << entry.name() << entry.hostAddress().toString();
-            m_serviceEntries.append(entry);
+
+        if (!m_serviceEntries.contains(id)) {
+            qCDebug(dcPlatformZeroConf()) << "Entry added" << id << "(" + entry.hostAddress().toString() + ")";
+            m_serviceEntries.insert(id, entry);
             emit serviceEntryAdded(entry);
         } else {
-            qCDebug(dcPlatformZeroConf()) << "Discarding duplicate entry:" << entry.serviceType() << entry.name() << entry.hostAddress().toString();
+            qCDebug(dcPlatformZeroConf()) << "Discarding duplicate entry:" << id << "(" + entry.hostAddress().toString() + ")";
         }
     }
     delete addrContext;
 }
+
+#else
+
+    errorCode = DNSServiceGetAddrInfo(&addrContext->ref, kDNSServiceFlagsForceMulticast, interfaceIndex, kDNSServiceProtocol_IPv4, hosttarget, (DNSServiceGetAddrInfoReply)addressCallback, addrContext);
+    if (errorCode != kDNSServiceErr_NoError) {
+        qCWarning(dcPlatformZeroConf) << "Failed to get address info";
+        delete addrContext;
+    }
+    int sockfd = DNSServiceRefSockFD(addrContext->ref);
+    if (sockfd == -1) {
+        DNSServiceRefDeallocate(addrContext->ref);
+        delete addrContext;
+    }
+
+    addrContext->socketNotifier = new QSocketNotifier(sockfd, QSocketNotifier::Read, self);
+    connect(addrContext->socketNotifier, &QSocketNotifier::activated, self, [addrContext](){
+        DNSServiceErrorType err = DNSServiceProcessResult(addrContext->ref);
+        if (err != kDNSServiceErr_NoError) {
+            DNSServiceRefDeallocate(addrContext->ref);
+            addrContext->socketNotifier->deleteLater();
+            delete addrContext;
+        }
+    });
+}
+
+void ZeroConfServiceBrowserDnssd::addressCallback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_t interfaceIndex, DNSServiceErrorType errorCode, const char *hostname, const sockaddr *address, uint32_t ttl, void *context)
+{
+    Q_UNUSED(sdRef)
+    Q_UNUSED(flags)
+    Q_UNUSED(hostname)
+    Q_UNUSED(ttl)
+
+    Context *addressContext = static_cast<Context*>(context);
+    ZeroConfServiceBrowserDnssd *self = addressContext->self;
+    DNSServiceRefDeallocate(addressContext->ref);
+    delete addressContext->socketNotifier;
+
+    if (errorCode != kDNSServiceErr_NoError) {
+        qCWarning(dcPlatformZeroConf) << "Failed to resolve address" << errorCode;
+        delete addressContext;
+        return;
+    }
+
+    QHostAddress addr(address);
+
+    QString id = QString("%1.%2@%3").arg(addressContext->name).arg(addressContext->serviceType).arg(interfaceIndex);
+    qCDebug(dcPlatformZeroConf()) << "Host resolved" << id;
+
+    ZeroConfServiceEntry entry = ZeroConfServiceEntry(addressContext->name, addressContext->serviceType, addr, addressContext->domain, addressContext->hostName, addressContext->port, QAbstractSocket::IPv4Protocol, addressContext->txt, false, false, false, false, false);
+
+    if (!self->m_serviceEntries.contains(id)) {
+        qCDebug(dcPlatformZeroConf()) << "Entry added" << id << "(" + entry.hostAddress().toString() + ")";
+        self->m_serviceEntries.insert(id, entry);
+        emit self->serviceEntryAdded(entry);
+    } else {
+        qCDebug(dcPlatformZeroConf()) << "Discarding duplicate entry:" << id << "(" + entry.hostAddress().toString() + ")";
+    }
+
+    delete addressContext;
+}
+
+#endif

@@ -10,6 +10,8 @@ PREPROCESS_FILES := $(wildcard debian/*.in)
 $(PREPROCESS_FILES:.in=): %: %.in
 	sed 's,/@DEB_HOST_MULTIARCH@,$(DEB_HOST_MULTIARCH:%=/%),g' $< > $@
 
+override_dh_auto_configure:
+	dh_auto_configure -- CONFIG+=avahi-compat
 
 override_dh_install: $(PREPROCESS_FILES:.in=)
 	dh_install
