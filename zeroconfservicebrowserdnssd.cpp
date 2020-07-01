@@ -195,9 +195,33 @@ void ZeroConfServiceBrowserDnssd::resolveCallback(DNSServiceRef sdRef, DNSServic
 #ifdef AVAHI_COMPAT
     int jobId = QHostInfo::lookupHost(hosttarget, self, SLOT(lookupFinished(QHostInfo)));
     self->m_pendingLookups.insert(jobId, addrContext);
+#else
 
+    errorCode = DNSServiceGetAddrInfo(&addrContext->ref, kDNSServiceFlagsForceMulticast, interfaceIndex, kDNSServiceProtocol_IPv4, hosttarget, (DNSServiceGetAddrInfoReply)addressCallback, addrContext);
+    if (errorCode != kDNSServiceErr_NoError) {
+        qCWarning(dcPlatformZeroConf) << "Failed to get address info";
+        delete addrContext;
+    }
+    int sockfd = DNSServiceRefSockFD(addrContext->ref);
+    if (sockfd == -1) {
+        DNSServiceRefDeallocate(addrContext->ref);
+        delete addrContext;
+    }
+
+    addrContext->socketNotifier = new QSocketNotifier(sockfd, QSocketNotifier::Read, self);
+    connect(addrContext->socketNotifier, &QSocketNotifier::activated, self, [addrContext](){
+        DNSServiceErrorType err = DNSServiceProcessResult(addrContext->ref);
+        if (err != kDNSServiceErr_NoError) {
+            DNSServiceRefDeallocate(addrContext->ref);
+            addrContext->socketNotifier->deleteLater();
+            delete addrContext;
+        }
+    });
+#endif
 }
 
+
+#ifdef AVAHI_COMPAT
 void ZeroConfServiceBrowserDnssd::lookupFinished(const QHostInfo &info)
 {
     if (!m_pendingLookups.contains(info.lookupId())) {
@@ -229,27 +253,6 @@ void ZeroConfServiceBrowserDnssd::lookupFinished(const QHostInfo &info)
 
 #else
 
-    errorCode = DNSServiceGetAddrInfo(&addrContext->ref, kDNSServiceFlagsForceMulticast, interfaceIndex, kDNSServiceProtocol_IPv4, hosttarget, (DNSServiceGetAddrInfoReply)addressCallback, addrContext);
-    if (errorCode != kDNSServiceErr_NoError) {
-        qCWarning(dcPlatformZeroConf) << "Failed to get address info";
-        delete addrContext;
-    }
-    int sockfd = DNSServiceRefSockFD(addrContext->ref);
-    if (sockfd == -1) {
-        DNSServiceRefDeallocate(addrContext->ref);
-        delete addrContext;
-    }
-
-    addrContext->socketNotifier = new QSocketNotifier(sockfd, QSocketNotifier::Read, self);
-    connect(addrContext->socketNotifier, &QSocketNotifier::activated, self, [addrContext](){
-        DNSServiceErrorType err = DNSServiceProcessResult(addrContext->ref);
-        if (err != kDNSServiceErr_NoError) {
-            DNSServiceRefDeallocate(addrContext->ref);
-            addrContext->socketNotifier->deleteLater();
-            delete addrContext;
-        }
-    });
-}
 
 void ZeroConfServiceBrowserDnssd::addressCallback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_t interfaceIndex, DNSServiceErrorType errorCode, const char *hostname, const sockaddr *address, uint32_t ttl, void *context)
 {
