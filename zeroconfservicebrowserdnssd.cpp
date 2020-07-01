@@ -130,7 +130,7 @@ void DNSSD_API ZeroConfServiceBrowserDnssd::browseCallback(DNSServiceRef sdRef, 
 
         if (self->m_serviceEntries.contains(id)) {
             qCDebug(dcPlatformZeroConf()) << "Entry removed:" << id;
-            ZeroConfServiceEntry entry = self->m_serviceEntries.take(serviceName);
+            ZeroConfServiceEntry entry = self->m_serviceEntries.take(id);
             emit self->serviceEntryRemoved(entry);
         }
     }
