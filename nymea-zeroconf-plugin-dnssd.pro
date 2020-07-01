@@ -13,11 +13,7 @@ avahi-compat {
 DEFINES += AVAHI_COMPAT
 }
 
-sue {
-LIBS += -ldns_sd_custom
-} else {
 LIBS += -ldns_sd
-}
 
 SOURCES += platformzeroconfcontrollerdnssd.cpp \
     zeroconfservicebrowserdnssd.cpp \
