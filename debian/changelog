@@ -1,3 +1,10 @@
+nymea-zeroconf-plugin-dnssd (0.3) xenial; urgency=medium
+
+  [ Michael Zanetti ]
+  * Use the correct address when creating zeroconf entries
+
+ -- Jenkins <jenkins@nymea.io>  Thu, 02 Jul 2020 14:14:54 +0200
+
 nymea-zeroconf-plugin-dnssd (0.2) xenial; urgency=medium
 
   [ Michael Zanetti ]
