@@ -183,19 +183,22 @@ void ZeroConfServiceBrowserDnssd::resolveCallback(DNSServiceRef sdRef, DNSServic
 
     qCDebug(dcPlatformZeroConf()) << "Resolving host for" << fullname << hosttarget;
 
-    // From here on we resolve the serviec. First, when using the AVAHI libdns compat lib.
+    // From here on we resolve the services host address.
     // The avahi compat lib does not implement DNSServiceGetAddrInfo. We can use other
     // means to resolve the address, however, neither QHostInfo nor gethostbyname allows us
     // to restrict resolving to a certain interface and that messes up stuff if we discover
     // the same service on different interfaces. We don't know how to deduplicate them any more.
-    // To behave better on systems where DNSServiceGetAddrInfo is available, let's use thae
-    // alternative implementation below.
+    // To behave better on systems where DNSServiceGetAddrInfo is available, let's use that.
 
 
 #ifdef AVAHI_COMPAT
+    // Resolve using QHostInfo when using the AVAHI libdns compat lib.
     int jobId = QHostInfo::lookupHost(hosttarget, self, SLOT(lookupFinished(QHostInfo)));
     self->m_pendingLookups.insert(jobId, addrContext);
+
 #else
+
+    // Resolve using DNSServiceGetAddrInfo when building against a proper libdns_sd.
 
     errorCode = DNSServiceGetAddrInfo(&addrContext->ref, kDNSServiceFlagsForceMulticast, interfaceIndex, kDNSServiceProtocol_IPv4, hosttarget, (DNSServiceGetAddrInfoReply)addressCallback, addrContext);
     if (errorCode != kDNSServiceErr_NoError) {
