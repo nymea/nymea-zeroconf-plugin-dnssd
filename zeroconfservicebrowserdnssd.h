@@ -58,8 +58,13 @@ public:
 
     static void DNSSD_API resolveCallback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_t interfaceIndex, DNSServiceErrorType errorCode, const char *fullname, const char *hosttarget, uint16_t port, uint16_t txtLen, const unsigned char *txtRecord, void *context);
 
+
+#ifdef AVAHI_COMPAT
 private slots:
     void lookupFinished(const QHostInfo &info);
+#else
+    static void DNSSD_API addressCallback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_t interfaceIndex, DNSServiceErrorType errorCode, const char *hostname, const sockaddr *address, uint32_t ttl, void *context);
+#endif
 
 private:
     class Context {
@@ -70,6 +75,7 @@ private:
         QString domain;
         QString hostName;
         int port = 0;
+        uint interfaceIndex = 0;
         QStringList txt;
         DNSServiceRef ref;
         QSocketNotifier *socketNotifier = nullptr;
@@ -78,7 +84,7 @@ private:
     DNSServiceRef m_browser;
     QSocketNotifier *m_socketNotifier = nullptr;
 
-    QList<ZeroConfServiceEntry> m_serviceEntries;
+    QHash<QString, ZeroConfServiceEntry> m_serviceEntries;
     QStringList m_serviceTypes;
 
     QHash<int, Context*> m_pendingLookups;

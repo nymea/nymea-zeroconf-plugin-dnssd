@@ -9,6 +9,10 @@ QMAKE_CXXFLAGS += -Werror
 CONFIG += plugin link_pkgconfig c++11
 PKGCONFIG += nymea
 
+avahi-compat {
+DEFINES += AVAHI_COMPAT
+}
+
 LIBS += -ldns_sd
 
 SOURCES += platformzeroconfcontrollerdnssd.cpp \
