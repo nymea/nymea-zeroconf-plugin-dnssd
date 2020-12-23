@@ -1,7 +1,9 @@
-nymea-zeroconf-plugin-dnssd (0.5) UNRELEASED; urgency=medium
+nymea-zeroconf-plugin-dnssd (0.5) xenial; urgency=medium
 
+  [ Michael Zanetti ]
+  * No change rebuild against new ABI
 
- -- Michael Zanetti <michael.zanetti@nymea.io>  Wed, 23 Dec 2020 15:14:56 +0100
+ -- Jenkins <jenkins@nymea.io>  Wed, 23 Dec 2020 15:28:20 +0100
 
 nymea-zeroconf-plugin-dnssd (0.4) xenial; urgency=medium
 
