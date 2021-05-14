@@ -7,10 +7,9 @@ Homepage: https://nymea.io
 Vcs-Git: https://github.com/nymea/nymea-zeroconf-plugin-dnssd.git
 Build-Depends: debhelper (>= 9.0.0),
                dpkg-dev (>= 1.16.1~),
-               qt5-default,
                qt5-qmake,
                qtbase5-dev,
-               libnymea1-dev (>= 0.12),
+               libnymea-dev (>= 0.27.0),
                libavahi-compat-libdnssd-dev,
 
 Package: nymea-zeroconf-plugin-dnssd
