@@ -1,3 +1,10 @@
+nymea-zeroconf-plugin-dnssd (0.6) xenial; urgency=medium
+
+  [ Michael Zanetti ]
+  * Enable building on Ubuntu 21.01
+
+ -- Jenkins <jenkins@nymea.io>  Fri, 14 May 2021 21:08:23 +0200
+
 nymea-zeroconf-plugin-dnssd (0.5) xenial; urgency=medium
 
   [ Michael Zanetti ]
