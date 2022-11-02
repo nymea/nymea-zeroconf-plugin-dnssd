@@ -83,12 +83,12 @@ bool ZeroConfServicePublisherDnssd::registerServiceInternal(ZeroConfServicePubli
     DNSServiceErrorType err = DNSServiceRegister(&ctx->ref, 0, ifIndex, ctx->effectiveName.toUtf8().data(), serviceType.toUtf8().data(), 0, 0, qFromBigEndian<quint16>(port), txt.length(), txt, (DNSServiceRegisterReply) registerCallback, ctx);
     if (err != kDNSServiceErr_NoError) {
         qCWarning(dcPlatformZeroConf) << "Failed to register ZeroConf service" << ctx->name << "with dns_sd. Error:" << err;
-        delete ctx;
         if (err == kDNSServiceErr_NameConflict) {
             qCDebug(dcPlatformZeroConf()) << "Handling service collision";
             ctx->collisionIndex++;
             return registerServiceInternal(ctx, hostAddress, port, serviceType, txtRecords);
         }
+        delete ctx;
         return false;
     }
 
