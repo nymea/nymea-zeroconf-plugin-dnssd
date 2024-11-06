@@ -1,3 +1,8 @@
+nymea-zeroconf-plugin-dnssd (1.11.0) jammy; urgency=medium
+
+
+ -- jenkins <developer@nymea.io>  Wed, 06 Nov 2024 08:59:57 +0100
+
 nymea-zeroconf-plugin-dnssd (1.9.5) jammy; urgency=medium
 
 
